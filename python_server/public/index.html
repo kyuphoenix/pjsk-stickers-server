@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pjsk贴纸制作</title>
+  <link rel="preload" href="/fonts/YurukaFangTang.ttf" as="font" type="font/ttf" crossorigin />
+  <link rel="stylesheet" href="/style.css?v=20261121b" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <span class="brand-icon">🎨</span>
+        <div>
+          <h1>pjsk贴纸制作</h1>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-bar">
+      <button class="nav-btn active" data-tab="playground">🎨 表情包工坊</button>
+      <button class="nav-btn" data-tab="api-docs">📖 API 调用与嵌入</button>
+    </nav>
+
+    <!-- Tab 1: Playground -->
+    <main class="tab-pane active" id="tab-playground">
+      <div class="playground-layout">
+        <!-- Controls Column -->
+        <section class="card controls-card">
+          <div class="controls-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h2 class="card-title" style="margin-bottom: 0;">⚙️ 参数配置</h2>
+            <button id="btn-reset-params" class="btn btn-sm btn-outline" title="恢复字号、旋转、描边、颜色等默认参数（保留当前输入的文字）">🔄 重置参数</button>
+          </div>
+
+          <!-- Pack & Sticker Select -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="pack-select">贴纸包 (Pack)</label>
+              <select id="pack-select" class="form-control"></select>
+            </div>
+            <div class="form-group flex-1">
+              <label for="category-select">分类/角色 (Category)</label>
+              <select id="category-select" class="form-control"></select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="sticker-select">具体贴纸 (Sticker)</label>
+            <select id="sticker-select" class="form-control"></select>
+          </div>
+
+          <!-- Text Input -->
+          <div class="form-group">
+            <label for="text-input">表情包文字</label>
+            <input type="text" id="text-input" class="form-control" placeholder="输入要添加的文字..." value="something" />
+          </div>
+
+          <!-- Sliders & Inputs -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <div class="label-val-row">
+                <label for="font-size">字号 (Font Size)</label>
+                <span class="val-tag" id="font-size-val">42px</span>
+              </div>
+              <input type="range" id="font-size" min="16" max="96" value="42" class="form-range" />
+            </div>
+
+            <div class="form-group flex-1">
+              <div class="label-val-row">
+                <label for="rotate-deg">旋转角度 (Rotate)</label>
+                <span class="val-tag" id="rotate-deg-val">0°</span>
+              </div>
+              <input type="range" id="rotate-deg" min="-180" max="180" value="0" class="form-range" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <div class="label-val-row">
+                <label for="stroke-width">描边粗细 (Stroke)</label>
+                <span class="val-tag" id="stroke-width-val">0.22</span>
+              </div>
+              <input type="range" id="stroke-width" min="0" max="0.5" step="0.01" value="0.22" class="form-range" />
+            </div>
+
+            <div class="form-group flex-1">
+              <label for="text-align">文字对齐</label>
+              <select id="text-align" class="form-control">
+                <option value="center" selected>居中 (Center)</option>
+                <option value="left">左对齐 (Left)</option>
+                <option value="right">右对齐 (Right)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Color Pickers -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>文字颜色</label>
+              <div class="color-row">
+                <input type="color" id="text-color" value="#FB8AAC" class="color-picker" />
+                <input type="text" id="text-color-hex" value="#FB8AAC" class="form-control form-control-sm" />
+              </div>
+            </div>
+            <div class="form-group flex-1">
+              <label>描边颜色</label>
+              <div class="color-row">
+                <input type="color" id="stroke-color" value="#FFFFFF" class="color-picker" />
+                <input type="text" id="stroke-color-hex" value="#FFFFFF" class="form-control form-control-sm" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Coordinates Offset -->
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="text-x">X 坐标锚点</label>
+              <input type="number" id="text-x" value="148" class="form-control" />
+            </div>
+            <div class="form-group flex-1">
+              <label for="text-y">Y 坐标锚点</label>
+              <input type="number" id="text-y" value="58" class="form-control" />
+            </div>
+            <div class="form-group flex-1">
+              <label for="image-format">导出格式</label>
+              <select id="image-format" class="form-control">
+                <option value="png" selected>PNG (无损透明)</option>
+                <option value="jpeg">JPEG</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label class="custom-checkbox">
+              <input type="checkbox" id="auto-resize" checked />
+              <span>自适应包围盒 (超限自动缩放与安全居中)</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Preview Column -->
+        <section class="card preview-card">
+          <div class="preview-header">
+            <h2 class="card-title">🖼️ 实时预览 (Live Canvas)</h2>
+            <div class="preview-tools" style="display: flex; gap: 12px; align-items: center;">
+              <label class="custom-checkbox small" title="在浏览器本地 Canvas 渲染，0ms 延迟，无网络开销">
+                <input type="checkbox" id="client-render-toggle" checked />
+                <span style="color: #38bdf8; font-weight: 600;">⚡ 纯前端渲染 (0ms)</span>
+              </label>
+              <label class="custom-checkbox small">
+                <input type="checkbox" id="live-preview-toggle" checked />
+                <span>实时刷新</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="canvas-wrapper">
+            <div class="canvas-box" id="canvas-container">
+              <canvas id="preview-canvas" style="display: block; max-width: 100%; height: auto;"></canvas>
+              <img id="preview-img" style="display: none; max-width: 100%; height: auto;" alt="表情包预览" />
+              <div id="loading-spinner" class="spinner hidden"></div>
+            </div>
+          </div>
+
+          <div class="preview-meta" id="preview-meta">
+            尺寸: 296 × 256 px · 引擎: 前端 Canvas 2D · 耗时: 0ms
+          </div>
+
+          <div class="btn-group">
+            <button id="btn-copy" class="btn btn-primary">📋 复制图片到剪贴板</button>
+            <button id="btn-download" class="btn btn-secondary">💾 下载图片</button>
+            <button id="btn-test-api" class="btn btn-outline">🧪 测试后端 API 生成 (POST)</button>
+            <button id="btn-copy-url" class="btn btn-outline">🔗 复制 API 直链</button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Tab 2: API Docs -->
+    <main class="tab-pane" id="tab-api-docs">
+      <div class="card">
+        <h2 class="card-title">📖 网络请求接口 (Serverless API)</h2>
+        <p class="text-muted">你可以直接将本服务作为公共 API 嵌入到 QQ 机器人、Discord 机器人、Markdown 文档或网页中。</p>
+
+        <div class="api-block">
+          <h3>1. 直接图片 GET 直链（最适合在 Markdown、HTML 或聊天工具中引用）</h3>
+          <p>无需发 POST 请求，直接访问 URL 即可输出原始图片流：</p>
+          <pre class="code-box"><code id="api-get-url">GET /api/generate?pack=pjsk&sticker=Airi%2001&text=something&format=png</code></pre>
+          <div class="code-actions">
+            <button class="btn btn-sm btn-outline" onclick="copyText('api-get-url')">复制直链 URL</button>
+          </div>
+        </div>
+
+        <div class="api-block">
+          <h3>2. Markdown 嵌入语法</h3>
+          <pre class="code-box"><code id="api-md-code">![Meme](http://localhost:3000/api/generate?pack=pjsk&sticker=Airi%2001&text=something)</code></pre>
+          <div class="code-actions">
+            <button class="btn btn-sm btn-outline" onclick="copyText('api-md-code')">复制 Markdown 代码</button>
+          </div>
+        </div>
+
+        <div class="api-block">
+          <h3>3. JSON POST 请求接口（适合前端或后端程序调用）</h3>
+          <p><strong>Endpoint:</strong> <code>POST /api/generate</code></p>
+          <pre class="code-box"><code>curl -X POST http://localhost:3000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pack_slug": "pjsk",
+    "sticker_name": "Airi 01",
+    "text": "something",
+    "font_size": 46,
+    "text_x": 148,
+    "text_y": 58,
+    "text_rotate_degrees": -11.5,
+    "text_color": [251, 138, 172, 255],
+    "stroke_color": [255, 255, 255, 255],
+    "stroke_width_factor": 0.23,
+    "auto_resize": true,
+    "image_format": "png"
+  }'</code></pre>
+        </div>
+
+        <div class="api-block">
+          <h3>4. 获取所有可用贴纸清单</h3>
+          <p><strong>Endpoint:</strong> <code>GET /api/packs</code></p>
+          <p class="text-muted">返回所有已加载贴纸包的分类与贴纸元数据（包含默认文本坐标、角度、颜色配置）。</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app.js?v=20261121b"></script>
+</body>
+</html>

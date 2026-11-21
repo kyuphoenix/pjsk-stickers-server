@@ -1,0 +1,19 @@
+{
+  "name": "pjsk-stickers-server",
+  "version": "1.0.0",
+  "description": "Serverless & Container Meme Sticker generator powered by Node.js (@napi-rs/canvas) with Python (Pillow) backup backend",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/server.test.js",
+    "sync-assets": "node scripts/sync-assets.js"
+  },
+  "keywords": ["meme", "stickers", "pjsk", "serverless", "canvas", "vercel"],
+  "author": "kyuphoenix",
+  "license": "MIT",
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.65"
+  }
+}

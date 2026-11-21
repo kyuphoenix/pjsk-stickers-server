@@ -1,0 +1,13 @@
+node_modules/
+test/output/
+.vercel/
+.env
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+*.pyo
+python_server/__pycache__/
+.cache/
+python_server/.cache/
+

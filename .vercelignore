@@ -1,0 +1,6 @@
+# Ignore Python backup server during Vercel Serverless deployments
+python_server/
+*.py
+*.pyc
+__pycache__/
+test/output/
