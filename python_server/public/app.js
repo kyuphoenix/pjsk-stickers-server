@@ -395,11 +395,81 @@ function updateApiDocs() {
   const host = window.location.origin;
   const pack = dom.packSelect.value;
   const sticker = dom.stickerSelect.value;
-  const text = encodeURIComponent(dom.textInput.value || 'something');
-  const align = dom.textAlign.value || 'center';
-  const format = dom.imageFormat.value;
+  const text = dom.textInput.value || 'something';
+  const stickerObj = currentSelectedSticker;
 
-  currentApiGetUrl = `${host}/api/generate?pack=${pack}&sticker=${encodeURIComponent(sticker)}&text=${text}&align=${align}&format=${format}`;
+  const params = new URLSearchParams();
+  params.set('pack', pack);
+  params.set('sticker', sticker);
+  params.set('text', text);
+
+  // 1. Text Color (if modified from sticker preset default)
+  const curColorHex = (dom.textColorHex.value || dom.textColor.value || '').trim();
+  const defaultColorHex = stickerObj ? rgbaToHex(stickerObj.text_color) : '';
+  if (curColorHex && defaultColorHex && curColorHex.toUpperCase() !== defaultColorHex.toUpperCase()) {
+    params.set('color', curColorHex);
+  }
+
+  // 2. Stroke Color (if modified from sticker preset default)
+  const curStrokeHex = (dom.strokeColorHex.value || dom.strokeColor.value || '').trim();
+  const defaultStrokeHex = stickerObj ? rgbaToHex(stickerObj.stroke_color) : '#FFFFFF';
+  if (curStrokeHex && defaultStrokeHex && curStrokeHex.toUpperCase() !== defaultStrokeHex.toUpperCase()) {
+    params.set('stroke', curStrokeHex);
+  }
+
+  // 3. Font Size (if modified from sticker preset default)
+  const curFontSize = Number(dom.fontSize.value);
+  const defaultFontSize = Number(stickerObj?.font_size ?? 42);
+  if (curFontSize && curFontSize !== defaultFontSize) {
+    params.set('size', curFontSize);
+  }
+
+  // 4. Rotation Angle (if modified from sticker preset default)
+  const curRotate = Number(dom.rotateDeg.value);
+  const defaultRotate = Math.round(Number(stickerObj?.text_rotate_degrees ?? 0));
+  if (curRotate !== defaultRotate) {
+    params.set('rotate', curRotate);
+  }
+
+  // 5. Stroke Width Factor (if modified from sticker preset default)
+  const curStrokeWidth = Number(dom.strokeWidth.value);
+  const defaultStrokeWidth = Number(stickerObj?.stroke_width_factor ?? 0.22);
+  if (curStrokeWidth && Math.abs(curStrokeWidth - defaultStrokeWidth) > 0.005) {
+    params.set('stroke_width', curStrokeWidth);
+  }
+
+  // 6. Text Alignment (if modified from sticker preset default)
+  const curAlign = dom.textAlign.value || 'center';
+  const defaultAlign = stickerObj?.text_align || 'center';
+  if (curAlign !== defaultAlign) {
+    params.set('align', curAlign);
+  }
+
+  // 7. Text Coordinates X & Y (if modified from sticker preset default)
+  const curX = Number(dom.textX.value);
+  const defaultX = Number(stickerObj?.text_x ?? 148);
+  if (curX && curX !== defaultX) {
+    params.set('x', curX);
+  }
+
+  const curY = Number(dom.textY.value);
+  const defaultY = Number(stickerObj?.text_y ?? 58);
+  if (curY && curY !== defaultY) {
+    params.set('y', curY);
+  }
+
+  // 8. Auto Resize (if disabled)
+  if (!dom.autoResize.checked) {
+    params.set('auto_resize', 'false');
+  }
+
+  // 9. Format (if not png)
+  const curFormat = dom.imageFormat.value || 'png';
+  if (curFormat !== 'png') {
+    params.set('format', curFormat);
+  }
+
+  currentApiGetUrl = `${host}/api/generate?${params.toString()}`;
   dom.apiGetUrl.textContent = `GET ${currentApiGetUrl}`;
   dom.apiMdCode.textContent = `![${sticker}](${currentApiGetUrl})`;
 }
@@ -633,18 +703,21 @@ dom.stickerSelect.addEventListener('change', onStickerChanged);
 dom.fontSize.addEventListener('input', e => {
   dom.fontSizeVal.textContent = `${e.target.value}px`;
   requestRender();
+  updateApiDocs();
 });
 dom.fontSize.addEventListener('change', updateApiDocs);
 
 dom.rotateDeg.addEventListener('input', e => {
   dom.rotateDegVal.textContent = `${e.target.value}°`;
   requestRender();
+  updateApiDocs();
 });
 dom.rotateDeg.addEventListener('change', updateApiDocs);
 
 dom.strokeWidth.addEventListener('input', e => {
   dom.strokeWidthVal.textContent = e.target.value;
   requestRender();
+  updateApiDocs();
 });
 dom.strokeWidth.addEventListener('change', updateApiDocs);
 
@@ -657,9 +730,24 @@ dom.textAlign.addEventListener('change', () => {
   updateApiDocs();
   requestRender();
 });
-dom.textX.addEventListener('input', requestRender);
-dom.textY.addEventListener('input', requestRender);
-dom.autoResize.addEventListener('change', requestRender);
+
+dom.textX.addEventListener('input', () => {
+  requestRender();
+  updateApiDocs();
+});
+dom.textX.addEventListener('change', updateApiDocs);
+
+dom.textY.addEventListener('input', () => {
+  requestRender();
+  updateApiDocs();
+});
+dom.textY.addEventListener('change', updateApiDocs);
+
+dom.autoResize.addEventListener('change', () => {
+  updateApiDocs();
+  requestRender();
+});
+
 dom.imageFormat.addEventListener('change', () => {
   updateApiDocs();
   requestRender();
@@ -668,20 +756,30 @@ dom.imageFormat.addEventListener('change', () => {
 dom.textColor.addEventListener('input', e => {
   dom.textColorHex.value = e.target.value;
   requestRender();
+  updateApiDocs();
 });
+dom.textColor.addEventListener('change', updateApiDocs);
+
 dom.textColorHex.addEventListener('input', e => {
   dom.textColor.value = e.target.value;
   requestRender();
+  updateApiDocs();
 });
+dom.textColorHex.addEventListener('change', updateApiDocs);
 
 dom.strokeColor.addEventListener('input', e => {
   dom.strokeColorHex.value = e.target.value;
   requestRender();
+  updateApiDocs();
 });
+dom.strokeColor.addEventListener('change', updateApiDocs);
+
 dom.strokeColorHex.addEventListener('input', e => {
   dom.strokeColor.value = e.target.value;
   requestRender();
+  updateApiDocs();
 });
+dom.strokeColorHex.addEventListener('change', updateApiDocs);
 
 dom.clientRenderToggle.addEventListener('change', () => {
   requestRender();

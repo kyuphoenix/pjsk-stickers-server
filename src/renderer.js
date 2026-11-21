@@ -44,7 +44,13 @@ function normalizeColor(c) {
     const alpha = typeof a === 'number' && a <= 1 ? a : a / 255;
     return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
   }
-  if (typeof c === 'string') return c;
+  if (typeof c === 'string') {
+    const s = c.trim();
+    if (/^[0-9a-fA-F]{3,8}$/.test(s)) {
+      return `#${s}`;
+    }
+    return s;
+  }
   return '#000000';
 }
 

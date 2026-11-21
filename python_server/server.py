@@ -186,14 +186,14 @@ async def handle_generate_get(request: web.Request) -> web.Response:
             else:
                 base_image = s_data.get("cdn_url") or s_data.get("base_image")
 
-    font_size = float(q.get("size") or (sticker_info["sticker"].get("font_size") if sticker_info else 42))
-    text_x = float(q.get("x") or (sticker_info["sticker"].get("text_x") if sticker_info else 148))
-    text_y = float(q.get("y") or (sticker_info["sticker"].get("text_y") if sticker_info else 60))
-    text_align = q.get("align") or q.get("text_align") or (sticker_info["sticker"].get("text_align") if sticker_info else "center")
-    text_rotate = float(q.get("rotate") or (sticker_info["sticker"].get("text_rotate_degrees") if sticker_info else 0))
-    text_color = q.get("color") or (sticker_info["sticker"].get("text_color") if sticker_info else [0, 0, 0, 255])
-    stroke_color = q.get("stroke") or (sticker_info["sticker"].get("stroke_color") if sticker_info else [255, 255, 255, 255])
-    stroke_factor = float(q.get("stroke_width") or (sticker_info["sticker"].get("stroke_width_factor") if sticker_info else 0.22))
+    font_size = float(q.get("size")) if "size" in q else float(sticker_info["sticker"].get("font_size", 42) if sticker_info else 42)
+    text_x = float(q.get("x")) if "x" in q else float(sticker_info["sticker"].get("text_x", 148) if sticker_info else 148)
+    text_y = float(q.get("y")) if "y" in q else float(sticker_info["sticker"].get("text_y", 58) if sticker_info else 58)
+    text_align = q.get("align") or q.get("text_align") or (sticker_info["sticker"].get("text_align", "center") if sticker_info else "center")
+    text_rotate = float(q.get("rotate")) if "rotate" in q else float(sticker_info["sticker"].get("text_rotate_degrees", 0) if sticker_info else 0)
+    text_color = q.get("color") or (sticker_info["sticker"].get("text_color", [0, 0, 0, 255]) if sticker_info else [0, 0, 0, 255])
+    stroke_color = q.get("stroke") or (sticker_info["sticker"].get("stroke_color", [255, 255, 255, 255]) if sticker_info else [255, 255, 255, 255])
+    stroke_factor = float(q.get("stroke_width")) if "stroke_width" in q else float(sticker_info["sticker"].get("stroke_width_factor", 0.22) if sticker_info else 0.22)
     auto_resize = q.get("auto_resize", "true").lower() != "false"
     image_format = q.get("format", "png")
 

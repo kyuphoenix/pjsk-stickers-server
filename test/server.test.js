@@ -143,6 +143,17 @@ async function runTests() {
   }
   console.log('✅ GET /api/generate verified!');
 
+  console.log('\n--- 5.1 Testing GET /api/generate with Custom Color & Formatting Query Parameters ---');
+  const rCustom = await createMockHttp({
+    method: 'GET',
+    url: '/api/generate?pack=pjsk&sticker=Airi%2001&text=ColorTest&color=%23FF0000&stroke=%23000000&size=55&rotate=12&stroke_width=0.3&x=130&y=70&align=left&format=png',
+  });
+  console.log('Custom GET status:', rCustom.statusCode, 'size:', rCustom.bodyBuffer.length);
+  if (rCustom.statusCode !== 200 || rCustom.bodyBuffer.length < 1000) {
+    throw new Error('Custom parameters GET /api/generate failed');
+  }
+  console.log('✅ Custom GET /api/generate with color and layout parameters verified!');
+
   console.log('\n--- 6. Testing GET /fonts/YurukaFangTang.ttf ---');
   const r6 = await createMockHttp({
     method: 'GET',
