@@ -9,6 +9,20 @@ const __dirname = path.dirname(__filename);
 const HUB_CDN_BASE = 'https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main';
 const HUB_CDN_MIRROR = 'https://ghfast.top/https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main';
 
+export const PACK_ALIASES = {
+  'arc': 'arcaea',
+  'arcaea': 'arcaea',
+  'pjsekai': 'pjsk',
+  'prsk': 'pjsk',
+  'pjsk': 'pjsk',
+};
+
+export function resolvePackSlug(slug) {
+  if (!slug) return 'pjsk';
+  const lower = String(slug).toLowerCase().trim();
+  return PACK_ALIASES[lower] || lower;
+}
+
 class PackManager {
   constructor() {
     this.memoryPacks = JSON.parse(JSON.stringify(PRESET_PACKS));
@@ -106,6 +120,7 @@ class PackManager {
 
   // Fetch full pack details from remote CDN on-demand
   async fetchFullPackOnline(slug) {
+    slug = resolvePackSlug(slug);
     if (this.onlineCache.has(slug)) {
       return this.onlineCache.get(slug);
     }
@@ -130,9 +145,7 @@ class PackManager {
 
   // Find a specific sticker by pack slug and sticker name
   async findSticker(packSlug, stickerName) {
-    if (!packSlug) {
-      packSlug = 'pjsk';
-    }
+    packSlug = resolvePackSlug(packSlug);
 
     let pack = this.memoryPacks[packSlug];
     if (!pack || !this.onlineCache.has(packSlug)) {

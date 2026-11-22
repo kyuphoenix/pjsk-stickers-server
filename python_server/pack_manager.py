@@ -10,6 +10,20 @@ from presets import PRESET_PACKS
 HUB_CDN_BASE = "https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main"
 HUB_CDN_MIRROR = "https://ghfast.top/https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main"
 
+PACK_ALIASES = {
+    "arc": "arcaea",
+    "arcaea": "arcaea",
+    "pjsekai": "pjsk",
+    "prsk": "pjsk",
+    "pjsk": "pjsk",
+}
+
+def resolve_pack_slug(slug: Optional[str]) -> str:
+    if not slug:
+        return "pjsk"
+    s = str(slug).lower().strip()
+    return PACK_ALIASES.get(s, s)
+
 class PackManager:
     def __init__(self):
         # 严格读取同目录下的 packs 占位/资源目录
@@ -75,6 +89,7 @@ class PackManager:
         }
 
     def fetch_full_pack_online(self, slug: str) -> Optional[dict]:
+        slug = resolve_pack_slug(slug)
         mirrors = [
             f"{HUB_CDN_BASE}/{slug}/manifest.json",
             f"{HUB_CDN_MIRROR}/{slug}/manifest.json",
@@ -100,11 +115,10 @@ class PackManager:
         return self.packs.get(slug)
 
     def get_pack(self, pack_slug: str) -> Optional[Dict[str, Any]]:
-        if not pack_slug:
-            pack_slug = "pjsk"
-        pack = self.packs.get(pack_slug)
+        slug = resolve_pack_slug(pack_slug)
+        pack = self.packs.get(slug)
         if not pack or not pack.get("_online_loaded"):
-            pack = self.fetch_full_pack_online(pack_slug) or pack
+            pack = self.fetch_full_pack_online(slug) or pack
         return pack
 
     def get_packs_tree(self) -> Dict[str, Any]:

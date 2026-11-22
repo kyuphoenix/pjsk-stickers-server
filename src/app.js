@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { renderSticker, renderGrid, getLoadedFonts } from './renderer.js';
-import { packManager } from './packManager.js';
+import { packManager, resolvePackSlug } from './packManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -183,7 +183,7 @@ export async function handleRequest(req, res) {
   // 5. API: Direct GET image generation (?pack=...&sticker=...&text=...)
   if (pathname === '/api/generate' && req.method === 'GET') {
     try {
-      const packSlug = url.searchParams.get('pack') || url.searchParams.get('pack_slug') || 'pjsk';
+      const packSlug = resolvePackSlug(url.searchParams.get('pack') || url.searchParams.get('pack_slug') || 'pjsk');
       const stickerName = url.searchParams.get('sticker') || url.searchParams.get('sticker_name') || '';
       const text = url.searchParams.get('text') || '';
       const customUrl = url.searchParams.get('image') || url.searchParams.get('url');
@@ -217,7 +217,7 @@ export async function handleRequest(req, res) {
   if ((pathname === '/api/generate' || pathname.endsWith('/generate')) && req.method === 'POST') {
     try {
       const body = await parseJsonBody(req);
-      const packSlug = body.pack_slug || 'pjsk';
+      const packSlug = resolvePackSlug(body.pack_slug || body.pack || 'pjsk');
       const stickerName = body.sticker_name || '';
 
       let stickerInfo = await packManager.findSticker(packSlug, stickerName);
@@ -263,12 +263,12 @@ export async function handleRequest(req, res) {
       let packSlug, category, format, quality;
       if (req.method === 'POST') {
         const body = await parseJsonBody(req);
-        packSlug = body.pack_slug || body.pack || 'pjsk';
+        packSlug = resolvePackSlug(body.pack_slug || body.pack || 'pjsk');
         category = body.category || null;
         format = body.image_format || body.format || 'jpeg';
         quality = body.quality ? Number(body.quality) : 85;
       } else {
-        packSlug = url.searchParams.get('pack') || url.searchParams.get('pack_slug') || 'pjsk';
+        packSlug = resolvePackSlug(url.searchParams.get('pack') || url.searchParams.get('pack_slug') || 'pjsk');
         category = url.searchParams.get('category') || null;
         format = url.searchParams.get('format') || 'jpeg';
         quality = url.searchParams.has('quality') ? Number(url.searchParams.get('quality')) : 85;
