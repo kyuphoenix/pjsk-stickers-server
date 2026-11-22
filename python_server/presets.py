@@ -104,6 +104,14 @@ PRESET_PACKS = {
         "name": "Arcaea",
         "slug": "arcaea",
         "description": "Arcaea 韵律源点 官方贴纸包",
+        "disable_category_select": True,
+        "sticker_grid": {
+            "disable_category_select": True,
+            "default_params": {
+                "padding": [304, 32, 32, 32],
+                "background": "pack_bg.webp"
+            }
+        },
         "default_params": {
             "width": 300,
             "height": 300,

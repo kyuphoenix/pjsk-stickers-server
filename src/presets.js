@@ -204,6 +204,14 @@ export const PRESET_PACKS = {
     name: "Arcaea",
     slug: "arcaea",
     description: "Arcaea 韵律源点 官方角色表情包",
+    disable_category_select: true,
+    sticker_grid: {
+      disable_category_select: true,
+      default_params: {
+        padding: [304, 32, 32, 32],
+        background: "pack_bg.webp"
+      }
+    },
     default_params: {
       width: 296,
       height: 256,

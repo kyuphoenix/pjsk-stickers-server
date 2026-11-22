@@ -78,6 +78,8 @@ class PackManager {
       slug,
       description: manifest.description || '',
       default_params: defaultParams,
+      disable_category_select: !!(manifest.sticker_grid?.disable_category_select),
+      sticker_grid: manifest.sticker_grid || {},
       categories: catDict,
     };
 
@@ -94,6 +96,8 @@ class PackManager {
         name: pack.name || slug,
         slug: slug,
         description: pack.description || '',
+        disable_category_select: !!(pack.disable_category_select || pack.sticker_grid?.disable_category_select),
+        sticker_grid: pack.sticker_grid || {},
         categories: pack.categories || {},
       };
     }

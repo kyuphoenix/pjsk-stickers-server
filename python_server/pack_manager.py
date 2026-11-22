@@ -65,6 +65,8 @@ class PackManager:
             "slug": slug,
             "description": manifest.get("description", ""),
             "default_params": default_params,
+            "disable_category_select": bool(manifest.get("sticker_grid", {}).get("disable_category_select")),
+            "sticker_grid": manifest.get("sticker_grid", {}),
             "categories": cat_dict,
         }
 
@@ -75,6 +77,8 @@ class PackManager:
                 "name": pack.get("name", slug),
                 "slug": slug,
                 "description": pack.get("description", ""),
+                "disable_category_select": bool(pack.get("disable_category_select") or pack.get("sticker_grid", {}).get("disable_category_select")),
+                "sticker_grid": pack.get("sticker_grid", {}),
                 "categories": pack.get("categories", {}),
             }
         return result
