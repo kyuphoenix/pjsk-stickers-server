@@ -1,11 +1,14 @@
 import copy
 import json
+import ssl
+import urllib.request
 from pathlib import Path
 from typing import Dict, Any, Optional
 
 from presets import PRESET_PACKS
 
-HUB_CDN_BASE = "https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main"
+HUB_CDN_BASE = "https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main"
+HUB_CDN_MIRROR = "https://ghfast.top/https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main"
 
 class PackManager:
     def __init__(self):
@@ -68,7 +71,41 @@ class PackManager:
             "disable_category_select": bool(manifest.get("sticker_grid", {}).get("disable_category_select")),
             "sticker_grid": manifest.get("sticker_grid", {}),
             "categories": cat_dict,
+            "_online_loaded": True,
         }
+
+    def fetch_full_pack_online(self, slug: str) -> Optional[dict]:
+        mirrors = [
+            f"{HUB_CDN_BASE}/{slug}/manifest.json",
+            f"{HUB_CDN_MIRROR}/{slug}/manifest.json",
+        ]
+        headers = {"User-Agent": "Mozilla/5.0"}
+        for u in mirrors:
+            try:
+                req = urllib.request.Request(u, headers=headers)
+                try:
+                    with urllib.request.urlopen(req, timeout=10.0) as resp:
+                        manifest = json.loads(resp.read().decode("utf-8"))
+                        self.parse_and_store_manifest(slug, manifest)
+                        return self.packs.get(slug)
+                except Exception:
+                    ctx = ssl._create_unverified_context()
+                    with urllib.request.urlopen(req, timeout=10.0, context=ctx) as resp:
+                        manifest = json.loads(resp.read().decode("utf-8"))
+                        self.parse_and_store_manifest(slug, manifest)
+                        return self.packs.get(slug)
+            except Exception:
+                continue
+
+        return self.packs.get(slug)
+
+    def get_pack(self, pack_slug: str) -> Optional[Dict[str, Any]]:
+        if not pack_slug:
+            pack_slug = "pjsk"
+        pack = self.packs.get(pack_slug)
+        if not pack or not pack.get("_online_loaded"):
+            pack = self.fetch_full_pack_online(pack_slug) or pack
+        return pack
 
     def get_packs_tree(self) -> Dict[str, Any]:
         result = {}
@@ -84,9 +121,7 @@ class PackManager:
         return result
 
     def find_sticker(self, pack_slug: str, sticker_name: str) -> Optional[Dict[str, Any]]:
-        if not pack_slug:
-            pack_slug = "pjsk"
-        pack = self.packs.get(pack_slug)
+        pack = self.get_pack(pack_slug)
         if not pack:
             return None
 

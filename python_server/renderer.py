@@ -4,7 +4,7 @@ import io
 import math
 import os
 from pathlib import Path
-from typing import Union, List, Tuple, Optional, Dict
+from typing import Union, List, Tuple, Optional, Dict, Any
 from collections import deque
 
 try:
@@ -319,7 +319,29 @@ def get_resize_contain(src_w: int, src_h: int, dst_w: int, dst_h: int) -> Tuple[
     offset_y = (dst_h - new_h) // 2
     return new_w, new_h, offset_x, offset_y
 
-def render_sticker_pillow(
+def resolve_padding(pad: Any) -> Tuple[int, int, int, int]:
+    if isinstance(pad, (int, float)):
+        val = int(pad)
+        return (val, val, val, val)
+    if isinstance(pad, (list, tuple)):
+        if len(pad) == 1:
+            val = int(pad[0])
+            return (val, val, val, val)
+        if len(pad) == 2:
+            return (int(pad[1]), int(pad[0]), int(pad[1]), int(pad[0]))
+        if len(pad) >= 4:
+            return (int(pad[0]), int(pad[1]), int(pad[2]), int(pad[3]))
+    return (16, 16, 16, 16)
+
+def resolve_gap(gap: Any) -> Tuple[int, int]:
+    if isinstance(gap, (int, float)):
+        val = int(gap)
+        return (val, val)
+    if isinstance(gap, (list, tuple)) and len(gap) >= 2:
+        return (int(gap[0]), int(gap[1]))
+    return (16, 16)
+
+def render_sticker_pillow_image(
     base_image_path: Optional[str],
     text: str,
     font_size: float = 42.0,
@@ -331,11 +353,10 @@ def render_sticker_pillow(
     stroke_color: Union[str, List[int]] = (255, 255, 255, 255),
     stroke_width_factor: float = 0.22,
     auto_resize: bool = True,
-    image_format: str = "png",
     width: int = 296,
     height: int = 256,
     pack_slug: str = "pjsk",
-) -> Tuple[bytes, str, int, int]:
+) -> Image.Image:
     # 1. Base image (contain scaling onto canvas)
     loaded_img, loaded_w, loaded_h = load_base_image(
         base_image_path,
@@ -353,17 +374,7 @@ def render_sticker_pillow(
         base_canvas = loaded_img
 
     if not text:
-        buf = io.BytesIO()
-        fmt = "JPEG" if image_format.lower() in {"jpg", "jpeg"} else "PNG"
-        if fmt == "JPEG":
-            bg = Image.new("RGB", (width, height), (255, 255, 255))
-            bg.paste(base_canvas, (0, 0), base_canvas)
-            bg.save(buf, format="JPEG", quality=95)
-            mime = "image/jpeg"
-        else:
-            base_canvas.save(buf, format="PNG")
-            mime = "image/png"
-        return buf.getvalue(), mime, width, height
+        return base_canvas
 
     # 2. Font sizing with auto-resize
     cur_size = int(font_size)
@@ -443,8 +454,43 @@ def render_sticker_pillow(
     final_canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     final_canvas.alpha_composite(base_canvas)
     final_canvas.alpha_composite(text_layer, (draw_x, draw_y))
+    return final_canvas
 
-    # 6. Save image to buffer
+def render_sticker_pillow(
+    base_image_path: Optional[str],
+    text: str,
+    font_size: float = 42.0,
+    text_x: float = 148.0,
+    text_y: float = 60.0,
+    text_align: str = "center",
+    text_rotate_degrees: float = 0.0,
+    text_color: Union[str, List[int]] = (0, 0, 0, 255),
+    stroke_color: Union[str, List[int]] = (255, 255, 255, 255),
+    stroke_width_factor: float = 0.22,
+    auto_resize: bool = True,
+    image_format: str = "png",
+    width: int = 296,
+    height: int = 256,
+    pack_slug: str = "pjsk",
+) -> Tuple[bytes, str, int, int]:
+    final_canvas = render_sticker_pillow_image(
+        base_image_path=base_image_path,
+        text=text,
+        font_size=font_size,
+        text_x=text_x,
+        text_y=text_y,
+        text_align=text_align,
+        text_rotate_degrees=text_rotate_degrees,
+        text_color=text_color,
+        stroke_color=stroke_color,
+        stroke_width_factor=stroke_width_factor,
+        auto_resize=auto_resize,
+        width=width,
+        height=height,
+        pack_slug=pack_slug,
+    )
+
+    # Save image to buffer
     buf = io.BytesIO()
     fmt = "JPEG" if image_format.lower() in {"jpg", "jpeg"} else "PNG"
     if fmt == "JPEG":
@@ -457,3 +503,140 @@ def render_sticker_pillow(
         mime = "image/png"
 
     return buf.getvalue(), mime, width, height
+
+def render_grid_pillow(
+    items: List[Dict[str, Any]],
+    cols: Optional[int] = 5,
+    rows: Optional[int] = None,
+    padding: Any = (16, 16, 16, 16),
+    gap: Any = (16, 16),
+    background: Any = "#282c34",
+    sticker_size_fixed: Optional[Union[List[int], Tuple[int, ...]]] = None,
+    pack_slug: str = "pjsk",
+    image_format: str = "jpeg",
+    quality: int = 85,
+) -> Tuple[bytes, str, int, int]:
+    stickers_len = len(items)
+    if stickers_len == 0:
+        c = Image.new("RGB", (16, 16), (40, 44, 52))
+        buf = io.BytesIO()
+        c.save(buf, format="PNG")
+        return buf.getvalue(), "image/png", 16, 16
+
+    c_cols = cols
+    c_rows = rows
+    if c_rows and not c_cols:
+        c_rows = min(c_rows, stickers_len)
+        c_cols = math.ceil(stickers_len / c_rows)
+    else:
+        c_cols = min(c_cols or 5, stickers_len)
+        c_rows = math.ceil(stickers_len / c_cols)
+
+    gap_x, gap_y = resolve_gap(gap)
+    pad_t, pad_r, pad_b, pad_l = resolve_padding(padding)
+
+    if sticker_size_fixed and len(sticker_size_fixed) >= 2:
+        max_w = int(sticker_size_fixed[0])
+        max_h = int(sticker_size_fixed[1])
+    else:
+        max_w = max([int(p.get("width") or 296) for p in items]) if items else 296
+        max_h = max([int(p.get("height") or 256) for p in items]) if items else 256
+
+    surface_w = round(c_cols * max_w + (c_cols - 1) * gap_x + pad_l + pad_r)
+    surface_h = round(c_rows * max_h + (c_rows - 1) * gap_y + pad_t + pad_b)
+
+    canvas = Image.new("RGBA", (surface_w, surface_h), (0, 0, 0, 0))
+    bg_drawn = False
+
+    if isinstance(background, str) and (
+        background.endswith((".webp", ".png", ".jpg", ".jpeg")) or background.startswith("http")
+    ):
+        try:
+            bg_src = background
+            if not bg_src.startswith("http"):
+                local_bg = BASE_DIR / "packs" / pack_slug / bg_src
+                if local_bg.exists() and local_bg.is_file():
+                    bg_src = str(local_bg)
+                else:
+                    bg_src = f"https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main/{pack_slug}/{bg_src}"
+            bg_img, bw, bh = load_base_image(bg_src, pack_slug=pack_slug, default_width=surface_w, default_height=surface_h)
+            if bg_img and bw > 0 and bh > 0:
+                ratio = max(surface_w / bw, surface_h / bh)
+                rw = max(1, int(round(bw * ratio)))
+                rh = max(1, int(round(bh * ratio)))
+                scaled_bg = bg_img.resize((rw, rh), resample=Image.Resampling.LANCZOS)
+                crop_x = max(0, (rw - surface_w) // 2)
+                crop_y = max(0, (rh - surface_h) // 2)
+                cropped_bg = scaled_bg.crop((crop_x, crop_y, crop_x + surface_w, crop_y + surface_h))
+                canvas.alpha_composite(cropped_bg, (0, 0))
+                bg_drawn = True
+        except Exception as e:
+            print(f"[Renderer] Failed to draw background image '{background}': {e}")
+
+    if not bg_drawn:
+        bg_color = parse_color(background if background else "#282c34")
+        canvas.paste(bg_color, (0, 0, surface_w, surface_h))
+
+    for idx, item in enumerate(items):
+        col = idx % c_cols
+        row = idx // c_cols
+
+        cell_x = pad_l + col * (max_w + gap_x)
+        cell_y = pad_t + row * (max_h + gap_y)
+
+        try:
+            base_img = item.get("baseImage") or item.get("cdn_url") or item.get("base_image")
+            text = item.get("text", "")
+            font_size = float(item.get("fontSize") or item.get("font_size") or 42)
+            item_w = int(item.get("width") or 296)
+            item_h = int(item.get("height") or 256)
+            text_x = float(item.get("textX") if item.get("textX") is not None else (item.get("text_x") if item.get("text_x") is not None else item_w / 2.0))
+            text_y = float(item.get("textY") if item.get("textY") is not None else (item.get("text_y") if item.get("text_y") is not None else 60.0))
+            text_align = str(item.get("textAlign") or item.get("text_align") or "center")
+            text_rotate = float(item.get("textRotateDegrees") if item.get("textRotateDegrees") is not None else (item.get("text_rotate_degrees") or 0.0))
+            text_color = item.get("textColor") or item.get("text_color") or [0, 0, 0, 255]
+            stroke_color = item.get("strokeColor") or item.get("stroke_color") or [255, 255, 255, 255]
+            stroke_factor = float(item.get("strokeWidthFactor") if item.get("strokeWidthFactor") is not None else (item.get("stroke_width_factor") if item.get("stroke_width_factor") is not None else 0.22))
+
+            cell_img = render_sticker_pillow_image(
+                base_image_path=base_img,
+                text=text,
+                font_size=font_size,
+                text_x=text_x,
+                text_y=text_y,
+                text_align=text_align,
+                text_rotate_degrees=text_rotate,
+                text_color=text_color,
+                stroke_color=stroke_color,
+                stroke_width_factor=stroke_factor,
+                auto_resize=True,
+                width=item_w,
+                height=item_h,
+                pack_slug=pack_slug,
+            )
+
+            ratio = min(max_w / cell_img.width, max_h / cell_img.height)
+            rw = max(1, int(round(cell_img.width * ratio)))
+            rh = max(1, int(round(cell_img.height * ratio)))
+            if rw != cell_img.width or rh != cell_img.height:
+                cell_img = cell_img.resize((rw, rh), resample=Image.Resampling.LANCZOS)
+
+            ox = cell_x + (max_w - rw) // 2
+            oy = cell_y + (max_h - rh) // 2
+            canvas.alpha_composite(cell_img, (ox, oy))
+        except Exception as err:
+            print(f"[Renderer] Failed to render sticker item {idx}: {err}")
+
+    buf = io.BytesIO()
+    fmt = "JPEG" if image_format.lower() in {"jpg", "jpeg"} else "PNG"
+    if fmt == "JPEG":
+        rgb_canvas = Image.new("RGB", (surface_w, surface_h), (255, 255, 255))
+        rgb_canvas.paste(canvas, (0, 0), canvas)
+        rgb_canvas.save(buf, format="JPEG", quality=quality)
+        mime = "image/jpeg"
+    else:
+        canvas.save(buf, format="PNG")
+        mime = "image/png"
+
+    return buf.getvalue(), mime, surface_w, surface_h
+

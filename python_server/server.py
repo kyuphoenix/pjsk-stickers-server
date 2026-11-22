@@ -10,7 +10,7 @@ import aiohttp
 from aiohttp import web
 
 from pack_manager import pack_manager
-from renderer import render_sticker_pillow, get_loaded_fonts
+from renderer import render_sticker_pillow, render_grid_pillow, get_loaded_fonts
 
 # ==========================================
 # 监听端口与地址显式定义 (可在代码内直接修改)
@@ -324,6 +324,214 @@ async def handle_proxy_image(request: web.Request) -> web.Response:
     return cors_json_response({"status": "error", "message": "Failed to fetch image upstream"}, 502)
 
 
+# 7. 网格预览 API (GET /api/grid)
+async def handle_grid_get(request: web.Request) -> web.Response:
+    q = request.query
+    pack_slug = q.get("pack") or q.get("pack_slug") or "pjsk"
+    category = q.get("category") or None
+    image_format = q.get("format", "jpeg")
+    try:
+        quality = int(q.get("quality", 85))
+    except ValueError:
+        quality = 85
+
+    pack = pack_manager.get_pack(pack_slug)
+    if not pack:
+        return cors_json_response({"status": "error", "message": f"未找到贴纸包: {pack_slug}"}, 404)
+
+    disable_category_select = bool(pack.get("disable_category_select") or pack.get("sticker_grid", {}).get("disable_category_select"))
+    sticker_grid = pack.get("sticker_grid", {})
+    items = []
+    grid_params = sticker_grid.get("default_params", {})
+
+    if disable_category_select:
+        # 全量贴纸大网格（如 Arcaea）
+        i = 1
+        for cat_name, stickers in pack.get("categories", {}).items():
+            for s in stickers:
+                items.append({
+                    **s,
+                    "baseImage": s.get("cdn_url") or s.get("base_image"),
+                    "text": f"{i}. {s['name']}",
+                })
+                i += 1
+        grid_params = sticker_grid.get("default_params") or sticker_grid
+    elif category:
+        # 指定分类下的贴纸网格 (大小写不敏感匹配)
+        matched_cat = None
+        for c in pack.get("categories", {}):
+            if c.lower() == str(category).lower():
+                matched_cat = c
+                break
+        if not matched_cat:
+            matched_cat = category
+
+        stickers = pack.get("categories", {}).get(matched_cat)
+        if not stickers:
+            return cors_json_response({"status": "error", "message": f"未找到分类: {category}"}, 404)
+
+        items = [
+            {
+                **s,
+                "baseImage": s.get("cdn_url") or s.get("base_image"),
+                "text": f"{idx + 1}. {s['name']}",
+            }
+            for idx, s in enumerate(stickers)
+        ]
+        grid_params = (
+            sticker_grid.get("resolved_stickers_params", {}).get(matched_cat)
+            or sticker_grid.get("default_params")
+            or {}
+        )
+    else:
+        # 分类选择网格（每个分类展示第 1 张代表图，并标序号和分类名）
+        categories = sorted(list(pack.get("categories", {}).keys()))
+        if not categories:
+            return cors_json_response({"status": "error", "message": f"贴纸包 {pack_slug} 中暂无分类"}, 404)
+
+        items = []
+        for idx, cat in enumerate(categories):
+            stickers = pack["categories"][cat]
+            if stickers:
+                first = stickers[0]
+                items.append({
+                    **first,
+                    "baseImage": first.get("cdn_url") or first.get("base_image"),
+                    "text": f"{idx + 1}. {cat}",
+                })
+        grid_params = sticker_grid.get("resolved_category_params") or sticker_grid.get("default_params") or {}
+
+    try:
+        img_bytes, mime, w, h = await asyncio.to_thread(
+            render_grid_pillow,
+            items=items,
+            cols=grid_params.get("cols"),
+            rows=grid_params.get("rows"),
+            padding=grid_params.get("padding") or [16, 16, 16, 16],
+            gap=grid_params.get("gap") or [16, 16],
+            background=grid_params.get("background") or "#282c34",
+            sticker_size_fixed=grid_params.get("sticker_size_fixed"),
+            pack_slug=pack_slug,
+            image_format=image_format,
+            quality=quality,
+        )
+        return cors_bytes_response(img_bytes, mime)
+    except Exception as e:
+        return cors_json_response({"status": "error", "message": str(e)}, 500)
+
+
+# 8. 网格预览 API (POST /api/grid)
+async def handle_grid_post(request: web.Request) -> web.Response:
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    pack_slug = body.get("pack_slug") or body.get("pack") or "pjsk"
+    category = body.get("category") or None
+    image_format = body.get("image_format") or body.get("format") or "jpeg"
+    try:
+        quality = int(body.get("quality", 85))
+    except (ValueError, TypeError):
+        quality = 85
+
+    pack = pack_manager.get_pack(pack_slug)
+    if not pack:
+        return cors_json_response({"status": "error", "message": f"未找到贴纸包: {pack_slug}"}, 404)
+
+    disable_category_select = bool(pack.get("disable_category_select") or pack.get("sticker_grid", {}).get("disable_category_select"))
+    sticker_grid = pack.get("sticker_grid", {})
+    items = []
+    grid_params = sticker_grid.get("default_params", {})
+
+    if disable_category_select:
+        # 全量贴纸大网格（如 Arcaea）
+        i = 1
+        for cat_name, stickers in pack.get("categories", {}).items():
+            for s in stickers:
+                items.append({
+                    **s,
+                    "baseImage": s.get("cdn_url") or s.get("base_image"),
+                    "text": f"{i}. {s['name']}",
+                })
+                i += 1
+        grid_params = sticker_grid.get("default_params") or sticker_grid
+    elif category:
+        # 指定分类下的贴纸网格 (大小写不敏感匹配)
+        matched_cat = None
+        for c in pack.get("categories", {}):
+            if c.lower() == str(category).lower():
+                matched_cat = c
+                break
+        if not matched_cat:
+            matched_cat = category
+
+        stickers = pack.get("categories", {}).get(matched_cat)
+        if not stickers:
+            return cors_json_response({"status": "error", "message": f"未找到分类: {category}"}, 404)
+
+        items = [
+            {
+                **s,
+                "baseImage": s.get("cdn_url") or s.get("base_image"),
+                "text": f"{idx + 1}. {s['name']}",
+            }
+            for idx, s in enumerate(stickers)
+        ]
+        grid_params = (
+            sticker_grid.get("resolved_stickers_params", {}).get(matched_cat)
+            or sticker_grid.get("default_params")
+            or {}
+        )
+    else:
+        # 分类选择网格（每个分类展示第 1 张代表图，并标序号和分类名）
+        categories = sorted(list(pack.get("categories", {}).keys()))
+        if not categories:
+            return cors_json_response({"status": "error", "message": f"贴纸包 {pack_slug} 中暂无分类"}, 404)
+
+        items = []
+        for idx, cat in enumerate(categories):
+            stickers = pack["categories"][cat]
+            if stickers:
+                first = stickers[0]
+                items.append({
+                    **first,
+                    "baseImage": first.get("cdn_url") or first.get("base_image"),
+                    "text": f"{idx + 1}. {cat}",
+                })
+        grid_params = sticker_grid.get("resolved_category_params") or sticker_grid.get("default_params") or {}
+
+    try:
+        img_bytes, mime, w, h = await asyncio.to_thread(
+            render_grid_pillow,
+            items=items,
+            cols=grid_params.get("cols"),
+            rows=grid_params.get("rows"),
+            padding=grid_params.get("padding") or [16, 16, 16, 16],
+            gap=grid_params.get("gap") or [16, 16],
+            background=grid_params.get("background") or "#282c34",
+            sticker_size_fixed=grid_params.get("sticker_size_fixed"),
+            pack_slug=pack_slug,
+            image_format=image_format,
+            quality=quality,
+        )
+        b64 = base64.b64encode(img_bytes).decode("ascii")
+        data_uri = f"data:{mime};base64,{b64}"
+
+        return cors_json_response({
+            "status": "ok",
+            "data": {
+                "data_uri": data_uri,
+                "width": w,
+                "height": h,
+                "format": image_format,
+                "size_bytes": len(img_bytes),
+            },
+        })
+    except Exception as e:
+        return cors_json_response({"status": "error", "message": str(e)}, 500)
+
+
 def make_app() -> web.Application:
     app = web.Application()
     app.router.add_route("OPTIONS", "/{tail:.*}", handle_options)
@@ -342,6 +550,8 @@ def make_app() -> web.Application:
     app.router.add_get("/api/packs", handle_packs)
     app.router.add_get("/api/generate", handle_generate_get)
     app.router.add_post("/api/generate", handle_generate_post)
+    app.router.add_get("/api/grid", handle_grid_get)
+    app.router.add_post("/api/grid", handle_grid_post)
     app.router.add_get("/api/proxy-image", handle_proxy_image)
 
     return app
@@ -353,6 +563,7 @@ if __name__ == "__main__":
     print("🚀 Meme Stickers Python Server (Standalone) Starting!")
     print(f"📍 Web Playground: http://localhost:{port}")
     print(f"⚡ API Generate:   http://localhost:{port}/api/generate")
+    print(f"🖼️ API Grid:       http://localhost:{port}/api/grid")
     print(f"📊 API Packs:      http://localhost:{port}/api/packs")
     print(f"📁 Local Packs:    {PACKS_DIR}")
     print(f"📁 Local Fonts:    {FONTS_DIR}")
