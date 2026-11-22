@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { renderSticker, getLoadedFonts } from './renderer.js';
+import { renderSticker, renderGrid, getLoadedFonts } from './renderer.js';
 import { packManager } from './packManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -252,6 +252,113 @@ export async function handleRequest(req, res) {
           size_bytes: result.buffer.length,
         },
       });
+    } catch (err) {
+      return sendJson(res, 500, { status: 'error', message: err.message });
+    }
+  }
+
+  // 7. API: Grid preview (GET /api/grid or POST /api/grid)
+  if (pathname === '/api/grid' || pathname.endsWith('/grid')) {
+    try {
+      let packSlug, category, format, quality;
+      if (req.method === 'POST') {
+        const body = await parseJsonBody(req);
+        packSlug = body.pack_slug || body.pack || 'pjsk';
+        category = body.category || null;
+        format = body.image_format || body.format || 'jpeg';
+        quality = body.quality ? Number(body.quality) : 85;
+      } else {
+        packSlug = url.searchParams.get('pack') || url.searchParams.get('pack_slug') || 'pjsk';
+        category = url.searchParams.get('category') || null;
+        format = url.searchParams.get('format') || 'jpeg';
+        quality = url.searchParams.has('quality') ? Number(url.searchParams.get('quality')) : 85;
+      }
+
+      let pack = packManager.memoryPacks[packSlug];
+      if (!pack || !packManager.onlineCache.has(packSlug)) {
+        pack = (await packManager.fetchFullPackOnline(packSlug)) || pack;
+      }
+      if (!pack) {
+        return sendJson(res, 404, { status: 'error', message: `未找到贴纸包: ${packSlug}` });
+      }
+
+      const disableCategorySelect = !!(pack.disable_category_select || pack.sticker_grid?.disable_category_select);
+      const stickerGrid = pack.sticker_grid || {};
+      let items = [];
+      let gridParams = stickerGrid.default_params || {};
+
+      if (disableCategorySelect) {
+        // 全量贴纸大网格（如 Arcaea）
+        let i = 1;
+        for (const [catName, stickers] of Object.entries(pack.categories || {})) {
+          for (const s of stickers) {
+            items.push({
+              ...s,
+              baseImage: s.cdn_url || s.base_image,
+              text: `${i}. ${s.name}`,
+            });
+            i++;
+          }
+        }
+        gridParams = stickerGrid.default_params || stickerGrid || {};
+      } else if (category) {
+        // 指定分类下的贴纸网格 (支持大小写不敏感匹配)
+        const matchedCat = Object.keys(pack.categories || {}).find(c => c.toLowerCase() === String(category).toLowerCase()) || category;
+        const stickers = pack.categories?.[matchedCat];
+        if (!stickers || stickers.length === 0) {
+          return sendJson(res, 404, { status: 'error', message: `未找到分类: ${category}` });
+        }
+        items = stickers.map((s, idx) => ({
+          ...s,
+          baseImage: s.cdn_url || s.base_image,
+          text: `${idx + 1}. ${s.name}`,
+        }));
+        gridParams = stickerGrid.resolved_stickers_params?.[matchedCat] || stickerGrid.default_params || {};
+      } else {
+        // 分类选择网格（每个分类展示第 1 张代表图，并标序号和分类名）
+        const categories = Object.keys(pack.categories || {}).sort();
+        if (categories.length === 0) {
+          return sendJson(res, 404, { status: 'error', message: `贴纸包 ${packSlug} 中暂无分类` });
+        }
+        items = categories.map((cat, idx) => {
+          const first = pack.categories[cat][0];
+          return {
+            ...first,
+            baseImage: first.cdn_url || first.base_image,
+            text: `${idx + 1}. ${cat}`,
+          };
+        });
+        gridParams = stickerGrid.resolved_category_params || stickerGrid.default_params || {};
+      }
+
+      const result = await renderGrid({
+        items,
+        packSlug,
+        cols: gridParams.cols,
+        rows: gridParams.rows,
+        padding: gridParams.padding,
+        gap: gridParams.gap,
+        background: gridParams.background,
+        stickerSizeFixed: gridParams.sticker_size_fixed,
+        imageFormat: format,
+        quality,
+      });
+
+      if (req.method === 'POST') {
+        const b64 = result.buffer.toString('base64');
+        return sendJson(res, 200, {
+          status: 'ok',
+          data: {
+            data_uri: `data:${result.mime};base64,${b64}`,
+            width: result.width,
+            height: result.height,
+            format,
+            size_bytes: result.buffer.length,
+          },
+        });
+      }
+
+      return sendBuffer(res, 200, result.mime, result.buffer);
     } catch (err) {
       return sendJson(res, 500, { status: 'error', message: err.message });
     }

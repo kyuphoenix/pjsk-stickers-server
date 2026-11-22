@@ -6,7 +6,7 @@ import { PRESET_PACKS } from './presets.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const HUB_CDN_BASE = 'https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main';
+const HUB_CDN_BASE = 'https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main';
 const HUB_CDN_MIRROR = 'https://ghfast.top/https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main';
 
 class PackManager {

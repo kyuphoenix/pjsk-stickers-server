@@ -221,6 +221,7 @@ async function resolveImageSource(src) {
   }
 
   const urlsToTry = [
+    src.replace('https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main', 'https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main'),
     src,
     src.replace('https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main', 'https://raw.githubusercontent.com/lgc-NB2Dev/meme-stickers-hub/main'),
     src.replace('https://raw.githubusercontent.com', 'https://ghfast.top/https://raw.githubusercontent.com'),
@@ -285,6 +286,7 @@ export async function renderSticker(options = {}) {
   if (!text) {
     const mime = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
     return {
+      canvas,
       buffer: canvas.toBuffer(mime),
       mime,
       width,
@@ -382,9 +384,152 @@ export async function renderSticker(options = {}) {
 
   const mime = imageFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
   return {
+    canvas,
     buffer: canvas.toBuffer(mime),
     mime,
     width,
     height,
+  };
+}
+
+function resolvePadding(pad) {
+  if (typeof pad === 'number') return [pad, pad, pad, pad];
+  if (Array.isArray(pad)) {
+    if (pad.length === 1) return [pad[0], pad[0], pad[0], pad[0]];
+    if (pad.length === 2) return [pad[1], pad[0], pad[1], pad[0]];
+    if (pad.length === 4) return [pad[0], pad[1], pad[2], pad[3]];
+  }
+  return [16, 16, 16, 16];
+}
+
+function resolveGap(gap) {
+  if (typeof gap === 'number') return [gap, gap];
+  if (Array.isArray(gap) && gap.length >= 2) return [gap[0], gap[1]];
+  return [16, 16];
+}
+
+export async function renderGrid(options = {}) {
+  const {
+    items = [],
+    cols: requestedCols = 5,
+    rows: requestedRows = null,
+    padding: rawPadding = [16, 16, 16, 16],
+    gap: rawGap = [16, 16],
+    background = '#282c34',
+    stickerSizeFixed = null,
+    packSlug = 'pjsk',
+    imageFormat = 'jpeg',
+    quality = 85,
+  } = options;
+
+  const stickersLen = items.length;
+  if (stickersLen === 0) {
+    const c = createCanvas(16, 16);
+    const mime = imageFormat === 'png' ? 'image/png' : 'image/jpeg';
+    return { buffer: c.toBuffer(mime), mime, width: 16, height: 16 };
+  }
+
+  let cols = requestedCols;
+  let rows = requestedRows;
+  if (rows && !cols) {
+    rows = Math.min(rows, stickersLen);
+    cols = Math.ceil(stickersLen / rows);
+  } else {
+    cols = Math.min(cols || 5, stickersLen);
+    rows = Math.ceil(stickersLen / cols);
+  }
+
+  const [gapX, gapY] = resolveGap(rawGap);
+  const [padT, padR, padB, padL] = resolvePadding(rawPadding);
+
+  const maxW = stickerSizeFixed ? stickerSizeFixed[0] : Math.max(...items.map(p => p.width || 296));
+  const maxH = stickerSizeFixed ? stickerSizeFixed[1] : Math.max(...items.map(p => p.height || 256));
+
+  const surfaceW = Math.round(cols * maxW + (cols - 1) * gapX + padL + padR);
+  const surfaceH = Math.round(rows * maxH + (rows - 1) * gapY + padT + padB);
+
+  const canvas = createCanvas(surfaceW, surfaceH);
+  const ctx = canvas.getContext('2d');
+
+  // Draw background
+  let bgDrawn = false;
+  if (typeof background === 'string' && (background.endsWith('.webp') || background.endsWith('.png') || background.endsWith('.jpg') || background.startsWith('http'))) {
+    try {
+      let bgSrc = background;
+      if (!bgSrc.startsWith('http')) {
+        const localBg = path.resolve(__dirname, '../packs', packSlug || '', bgSrc);
+        if (fs.existsSync(localBg)) {
+          bgSrc = localBg;
+        } else {
+          bgSrc = `https://cdn.jsdelivr.net/gh/lgc-NB2Dev/meme-stickers-hub@main/${packSlug}/${bgSrc}`;
+        }
+      }
+      const resolved = await resolveImageSource(bgSrc);
+      if (resolved) {
+        const bgImg = typeof resolved === 'string' || Buffer.isBuffer(resolved) ? await loadImage(resolved) : resolved;
+        const ratio = Math.max(surfaceW / bgImg.width, surfaceH / bgImg.height);
+        const rw = bgImg.width * ratio;
+        const rh = bgImg.height * ratio;
+        const ox = (surfaceW - rw) / 2;
+        const oy = (surfaceH - rh) / 2;
+        ctx.drawImage(bgImg, ox, oy, rw, rh);
+        bgDrawn = true;
+      }
+    } catch (e) {
+      console.warn(`[renderGrid] Failed to draw background image '${background}':`, e.message);
+    }
+  }
+
+  if (!bgDrawn) {
+    ctx.fillStyle = normalizeColor(background || '#282c34');
+    ctx.fillRect(0, 0, surfaceW, surfaceH);
+  }
+
+  // Draw each sticker in the grid
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    const col = idx % cols;
+    const row = Math.floor(idx / cols);
+
+    const cellX = padL + col * (maxW + gapX);
+    const cellY = padT + row * (maxH + gapY);
+
+    try {
+      const cell = await renderSticker({
+        baseImage: item.baseImage || item.cdn_url || item.base_image,
+        text: item.text || '',
+        fontSize: item.fontSize || item.font_size || 42,
+        textX: item.textX !== undefined ? item.textX : (item.text_x !== undefined ? item.text_x : (item.width || 296) / 2),
+        textY: item.textY !== undefined ? item.textY : (item.text_y !== undefined ? item.text_y : 60),
+        textAlign: item.textAlign || item.text_align || 'center',
+        textRotateDegrees: item.textRotateDegrees !== undefined ? item.textRotateDegrees : (item.text_rotate_degrees || 0),
+        textColor: item.textColor || item.text_color || [0, 0, 0, 255],
+        strokeColor: item.strokeColor || item.stroke_color || [255, 255, 255, 255],
+        strokeWidthFactor: item.strokeWidthFactor !== undefined ? item.strokeWidthFactor : (item.stroke_width_factor || 0.22),
+        width: item.width || 296,
+        height: item.height || 256,
+        autoResize: true,
+        imageFormat: 'png',
+      });
+
+      const ratio = Math.min(maxW / cell.width, maxH / cell.height);
+      const rw = cell.width * ratio;
+      const rh = cell.height * ratio;
+      const ox = cellX + (maxW - rw) / 2;
+      const oy = cellY + (maxH - rh) / 2;
+
+      ctx.drawImage(cell.canvas, ox, oy, rw, rh);
+    } catch (err) {
+      console.warn(`[renderGrid] Failed to render sticker item ${idx}:`, err.message);
+    }
+  }
+
+  const mime = imageFormat === 'png' ? 'image/png' : 'image/jpeg';
+  const buffer = canvas.toBuffer(mime, quality);
+  return {
+    buffer,
+    mime,
+    width: surfaceW,
+    height: surfaceH,
   };
 }
